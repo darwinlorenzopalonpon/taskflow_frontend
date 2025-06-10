@@ -10,69 +10,49 @@ interface User {
   [key: string]: any
 }
 
-// Define the auth store using the Composition API style with Pinia
+axios.defaults.withCredentials = true
+
 export const useAuthStore = defineStore('auth', () => {
-  // Reactive state - user data and JWT token
-  const user = ref<User | null>(null)  // Stores the current user's information
-  const token = ref<string | null>(localStorage.getItem('auth_token'))  // Retrieve token from localStorage if it exists
+  const user = ref<User | null>(null)
 
-  // Computed property to check if user is authenticated
-  const isAuthenticated = computed(() => !!token.value && !!user.value)
+  const isAuthenticated = computed(() => !!user.value)
 
-  // Set up axios interceptor for authenticated requests
-  if (token.value) {
-    axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
-  }
-
-  // Store authentication data and configure axios
-  const setAuth = (newToken: string, userData: User | null) => {
-    console.log('Setting auth token:', newToken)
-    token.value = newToken
+  const setAuth = (userData: User | null) => {
     user.value = userData
-    localStorage.setItem('auth_token', newToken)  // Persist token in localStorage
-    axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`  // Set token in axios headers
   }
 
-  // Clear authentication data and axios headers
-  const logout = () => {
-    console.log('Logging out')
-    token.value = null
-    user.value = null
-    localStorage.removeItem('auth_token')
-    delete axios.defaults.headers.common['Authorization']
-  }
-
-  // Fetch current user data from the API
-  const fetchUser = async () => {
-    console.log('Fetching user data')
+  const logout = async () => {
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/v1/auth/me`)
-      console.log('User data received:', response.data)
-      user.value = response.data.user
-      return response.data.user
+      await axios.delete(`${import.meta.env.VITE_API_BASE_URL}/api/v1/auth/logout`)
+      user.value = null
     } catch (error) {
-      console.error('Error fetching user:', error)
-      logout()  // If API call fails, log the user out
+      console.error('Logout error:', error)
       throw error
     }
   }
 
-  // Handle OAuth callback with token from URL
-  const handleOAuthCallback = async (tokenFromUrl: string) => {
-    console.log('Handling OAuth callback with token:', tokenFromUrl)
-    if (tokenFromUrl) {
-      setAuth(tokenFromUrl, null)
-      // Remove token from URL for security
-      window.history.replaceState({}, document.title, window.location.pathname)
-      // Make sure to await the fetchUser call
-      return await fetchUser()
+  // Fetch current user data from the API
+  const fetchUser = async () => {
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/v1/auth/me`)
+      user.value = response.data.user
+      return response.data.user
+    } catch (error) {
+      console.error('Error fetching user:', error)
+      logout()
+      throw error
     }
+  }
+
+  const handleOAuthCallback = async () => {
+    setAuth(null)
+    window.history.replaceState({}, document.title, window.location.pathname)
+    return await fetchUser()
   }
 
   // Return the store's state and methods
   return {
     user,
-    token,
     isAuthenticated,
     setAuth,
     logout,

@@ -36,37 +36,33 @@ const router = createRouter({
 
 // Navigation guard to check authentication before route changes
 router.beforeEach(async (
-  to: RouteLocationNormalized, 
-  from: RouteLocationNormalized, 
+  to: RouteLocationNormalized,
+  from: RouteLocationNormalized,
   next: NavigationGuardNext
 ) => {
   const authStore = useAuthStore()
 
-   // Check if there's a token in the URL parameters
-   const token = to.query.token as string
-  
-   if (token) {
-     try {
-       console.log('Processing OAuth token in navigation guard')
-       // Process the token and wait for completion
-       await authStore.handleOAuthCallback(token)
-       console.log('OAuth callback completed, redirecting to dashboard')
-       // Redirect to dashboard and clean up URL
-       next({ name: 'dashboard', replace: true })
-       return
-     } catch (error) {
-       console.error('OAuth callback failed:', error)
-       // If OAuth fails, redirect to login with error
-       next({ name: 'login', query: { error: 'auth_failed' }, replace: true })
-       return
-     }
-   }
-  
-  // If route requires auth and user isn't authenticated, redirect to login
+  if (to.query.auth_success) {
+    try {
+      await authStore.handleOAuthCallback()
+      next({ name: 'dashboard', replace: true })
+      return
+    } catch (error) {
+      console.error('OAuth callback failed:', error)
+      next({ name: 'login', query: { error: 'auth_failed' }, replace: true })
+      return
+    }
+  }
+
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    next('/login')
+    try {
+      await authStore.fetchUser()
+      next()
+    } catch (error) {
+      next('/login')
+    }
   } else {
-    next()  // Otherwise proceed normally
+    next()
   }
 })
 
